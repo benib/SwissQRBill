@@ -131,31 +131,6 @@ export class PDF extends ExtendedPDF.PDF {
       this._data.debtor = this._data.debitor;
     }
 
-    this._cleanData();
-    this._validateData();
-
-
-    //-- Validate reference
-
-    if(utils.isQRIBAN(this._data.creditor.account)){
-      if(this._data.reference !== undefined){
-        if(utils.isQRReference(this._data.reference)){
-          this._referenceType = "QRR";
-        }
-      }
-    } else {
-
-      if(this._data.reference === undefined){
-        this._referenceType = "NON";
-      } else {
-        if(!utils.isQRReference(this._data.reference)){
-          this._referenceType = "SCOR";
-        }
-      }
-
-    }
-
-
     //-- Apply options
 
     if(options !== undefined){
@@ -178,7 +153,7 @@ export class PDF extends ExtendedPDF.PDF {
     this.addPage();
 
     if(this._autoGenerate === true){
-      this.addQRBill();
+      this.addQRBill(this._data);
       this.end();
     }
 
@@ -206,7 +181,10 @@ export class PDF extends ExtendedPDF.PDF {
   }
 
 
-  public addQRBill(): void {
+  public addQRBill(data?: data): void {
+    if (!data) data = this._data
+    data = this._cleanData(data);
+    this._validateData(data)
 
     if(this.page.height - this.y < utils.mmToPoints(105) && this.y !== this.page.margins.top){
       this.addPage({
@@ -219,8 +197,8 @@ export class PDF extends ExtendedPDF.PDF {
     this._marginTop = this.page.height - utils.mmToPoints(105);
 
     this._drawOutlines();
-    this._drawReceipt();
-    this._drawPaymentPart();
+    this._drawReceipt(data);
+    this._drawPaymentPart(data);
 
   }
 
@@ -288,7 +266,7 @@ export class PDF extends ExtendedPDF.PDF {
   }
 
 
-  private _drawReceipt(): void {
+  private _drawReceipt(data: data): void {
 
     this.fontSize(11);
     this.font("Helvetica-Bold");
@@ -308,7 +286,7 @@ export class PDF extends ExtendedPDF.PDF {
 
     this.fontSize(8);
     this.font("Helvetica");
-    this.text(`${utils.formatIBAN(this._data.creditor.account)}\n${this._formatAddress(this._data.creditor)}`, {
+    this.text(`${utils.formatIBAN(data.creditor.account)}\n${this._formatAddress(data.creditor)}`, {
       width: utils.mmToPoints(52)
     });
 
@@ -317,7 +295,7 @@ export class PDF extends ExtendedPDF.PDF {
 
     //-- Reference
 
-    if(this._data.reference !== undefined){
+    if(data.reference !== undefined){
 
       this.fontSize(6);
       this.font("Helvetica-Bold");
@@ -327,7 +305,8 @@ export class PDF extends ExtendedPDF.PDF {
 
       this.fontSize(8);
       this.font("Helvetica");
-      this.text(this._formatReference(this._data.reference), {
+      const referenceType = this._getReferenceType(data)
+      this.text(this._formatReference(data.reference, referenceType), {
         width: utils.mmToPoints(52)
       });
 
@@ -335,8 +314,7 @@ export class PDF extends ExtendedPDF.PDF {
 
 
     //-- Debtor
-
-    if(this._data.debtor !== undefined){
+    if(data.debtor !== undefined){
 
       this.fontSize(9);
       this.moveDown();
@@ -349,7 +327,7 @@ export class PDF extends ExtendedPDF.PDF {
 
       this.fontSize(8);
       this.font("Helvetica");
-      this.text(this._formatAddress(this._data.debtor), {
+      this.text(this._formatAddress(data.debtor), {
         width: utils.mmToPoints(52)
       });
 
@@ -367,7 +345,7 @@ export class PDF extends ExtendedPDF.PDF {
 
       //-- Draw rectangle
 
-      const posY = this._data.reference === undefined ? 38 : 43;
+      const posY = data.reference === undefined ? 38 : 43;
 
       this._drawRectangle(5, posY, 52, 20);
 
@@ -385,12 +363,12 @@ export class PDF extends ExtendedPDF.PDF {
 
     this.fontSize(8);
     this.font("Helvetica");
-    this.text(this._data.currency, utils.mmToPoints(5), this._marginTop + utils.mmToPoints(71), {
+    this.text(data.currency, utils.mmToPoints(5), this._marginTop + utils.mmToPoints(71), {
       width: utils.mmToPoints(15)
     });
 
-    if(this._data.amount !== undefined){
-      this.text(utils.formatAmount(this._data.amount), utils.mmToPoints(20), this._marginTop + utils.mmToPoints(71), {
+    if(data.amount !== undefined){
+      this.text(utils.formatAmount(data.amount), utils.mmToPoints(20), this._marginTop + utils.mmToPoints(71), {
         width: utils.mmToPoints(37)
       });
     } else {
@@ -407,7 +385,7 @@ export class PDF extends ExtendedPDF.PDF {
   }
 
 
-  private _drawPaymentPart(): void {
+  private _drawPaymentPart(data: data): void {
 
     this.fontSize(11);
     this.font("Helvetica-Bold");
@@ -416,7 +394,7 @@ export class PDF extends ExtendedPDF.PDF {
       align: "left"
     });
 
-    this._generateQRCode();
+    this._generateQRCode(data);
 
     this.fillColor("black");
 
@@ -432,12 +410,12 @@ export class PDF extends ExtendedPDF.PDF {
 
     this.fontSize(10);
     this.font("Helvetica");
-    this.text(this._data.currency, utils.mmToPoints(67), this._marginTop + utils.mmToPoints(72), {
+    this.text(data.currency, utils.mmToPoints(67), this._marginTop + utils.mmToPoints(72), {
       width: utils.mmToPoints(15)
     });
 
-    if(this._data.amount !== undefined){
-      this.text(utils.formatAmount(this._data.amount), utils.mmToPoints(87), this._marginTop + utils.mmToPoints(72), {
+    if(data.amount !== undefined){
+      this.text(utils.formatAmount(data.amount), utils.mmToPoints(87), this._marginTop + utils.mmToPoints(72), {
         width: utils.mmToPoints(36)
       });
     } else {
@@ -447,7 +425,7 @@ export class PDF extends ExtendedPDF.PDF {
 
     //-- AV1 and AV2
 
-    if(this._data.av1 !== undefined){
+    if(data.av1 !== undefined){
       this.fontSize(7);
       this.font("Helvetica-Bold");
       this.text("Name AV1:", utils.mmToPoints(67), this._marginTop + utils.mmToPoints(90), {
@@ -456,12 +434,12 @@ export class PDF extends ExtendedPDF.PDF {
 
       this.fontSize(7);
       this.font("Helvetica");
-      this.text((this._data.av1.length > 87 ? this._data.av1.substr(0, 87) + "..." : this._data.av1), utils.mmToPoints(81), this._marginTop + utils.mmToPoints(90), {
+      this.text((data.av1.length > 87 ? data.av1.substr(0, 87) + "..." : data.av1), utils.mmToPoints(81), this._marginTop + utils.mmToPoints(90), {
         width: utils.mmToPoints(37)
       });
     }
 
-    if(this._data.av2 !== undefined){
+    if(data.av2 !== undefined){
       this.fontSize(7);
       this.font("Helvetica-Bold");
       this.text("Name AV2:", utils.mmToPoints(67), this._marginTop + utils.mmToPoints(93), {
@@ -470,7 +448,7 @@ export class PDF extends ExtendedPDF.PDF {
 
       this.fontSize(7);
       this.font("Helvetica");
-      this.text((this._data.av2.length > 87 ? this._data.av2.substr(0, 87) + "..." : this._data.av2), utils.mmToPoints(81), this._marginTop + utils.mmToPoints(93), {
+      this.text((data.av2.length > 87 ? data.av2.substr(0, 87) + "..." : data.av2), utils.mmToPoints(81), this._marginTop + utils.mmToPoints(93), {
         width: utils.mmToPoints(37)
       });
     }
@@ -483,13 +461,13 @@ export class PDF extends ExtendedPDF.PDF {
 
     this.fontSize(10);
     this.font("Helvetica");
-    this.text(`${utils.formatIBAN(this._data.creditor.account)}\n${this._formatAddress(this._data.creditor)}`, utils.mmToPoints(118), this._marginTop + utils.mmToPoints(9.5), {
+    this.text(`${utils.formatIBAN(data.creditor.account)}\n${this._formatAddress(data.creditor)}`, utils.mmToPoints(118), this._marginTop + utils.mmToPoints(9.5), {
       width: utils.mmToPoints(87)
     });
 
     this.moveDown();
 
-    if(this._data.reference !== undefined){
+    if(data.reference !== undefined){
 
       this.fontSize(8);
       this.font("Helvetica-Bold");
@@ -499,7 +477,8 @@ export class PDF extends ExtendedPDF.PDF {
 
       this.fontSize(10);
       this.font("Helvetica");
-      this.text(this._formatReference(this._data.reference), {
+      const referenceType = this._getReferenceType(data)
+      this.text(this._formatReference(data.reference, referenceType), {
         width: utils.mmToPoints(87)
       });
 
@@ -510,7 +489,7 @@ export class PDF extends ExtendedPDF.PDF {
 
     //-- Additional information
 
-    if(this._data.additionalInformation !== undefined){
+    if(data.additionalInformation !== undefined){
 
       this.fontSize(8);
       this.font("Helvetica-Bold");
@@ -520,7 +499,7 @@ export class PDF extends ExtendedPDF.PDF {
 
       this.fontSize(10);
       this.font("Helvetica");
-      this.text(this._data.additionalInformation, {
+      this.text(data.additionalInformation, {
         width: utils.mmToPoints(87)
       });
 
@@ -528,7 +507,7 @@ export class PDF extends ExtendedPDF.PDF {
 
     }
 
-    if(this._data.debtor !== undefined){
+    if(data.debtor !== undefined){
 
       this.fontSize(8);
       this.font("Helvetica-Bold");
@@ -538,7 +517,7 @@ export class PDF extends ExtendedPDF.PDF {
 
       this.fontSize(10);
       this.font("Helvetica");
-      this.text(this._formatAddress(this._data.debtor), {
+      this.text(this._formatAddress(data.debtor), {
         width: utils.mmToPoints(87)
       });
 
@@ -550,54 +529,71 @@ export class PDF extends ExtendedPDF.PDF {
         width: utils.mmToPoints(87)
       });
 
-      const posY = this._data.reference === undefined ? 34 : 45;
+      const posY = data.reference === undefined ? 34 : 45;
 
       this._drawRectangle(118, posY, 65, 25);
 
     }
   }
 
+  private _getReferenceType(data: data): string | undefined {
+    if(utils.isQRIBAN(data.creditor.account)){
+      if(data.reference !== undefined){
+        if(utils.isQRReference(data.reference)){
+          return "QRR";
+        }
+      }
+    } else {
 
-  private _validateData(): void {
+      if(data.reference === undefined){
+        return "NON";
+      } else {
+        if(!utils.isQRReference(data.reference)){
+          return "SCOR";
+        }
+      }
+    }
+  }
 
 
+  private _validateData(data: data): void {
     //-- Creditor
 
-    if(this._data.creditor === undefined){ throw new Error("Creditor cannot be undefined."); }
+    if(data.creditor === undefined){ throw new Error("Creditor cannot be undefined."); }
 
 
     //-- Creditor account
 
-    if(this._data.creditor.account === undefined){
+    if(data.creditor.account === undefined){
       throw new Error("You must provide an IBAN or QR-IBAN number.");
     }
 
-    if(this._data.creditor.account.length !== 21){
-      throw new Error(`The provided IBAN number '${this._data.creditor.account}' is either too long or too short.`);
+    if(data.creditor.account.length !== 21){
+      throw new Error(`The provided IBAN number '${data.creditor.account}' is either too long or too short.`);
     }
 
-    if(utils.isIBANValid(this._data.creditor.account) === false){
-      throw new Error(`The provided IBAN number '${this._data.creditor.account}' is not valid.`);
+    if(utils.isIBANValid(data.creditor.account) === false){
+      throw new Error(`The provided IBAN number '${data.creditor.account}' is not valid.`);
     }
 
-    if(this._data.creditor.account.substr(0, 2) !== "CH" && this._data.creditor.account.substr(0, 2) !== "LI"){
+    if(data.creditor.account.substr(0, 2) !== "CH" && data.creditor.account.substr(0, 2) !== "LI"){
       throw new Error("Only CH and LI IBAN numbers are allowed.");
     }
 
 
     //-- Validate reference
 
-    if(utils.isQRIBAN(this._data.creditor.account)){
+    if(utils.isQRIBAN(data.creditor.account)){
 
-      if(this._data.reference === undefined){
+      if(data.reference === undefined){
         throw new Error("If there is no reference, a conventional IBAN must be used.");
       }
 
-      if(utils.isQRReference(this._data.reference)){
+      if(utils.isQRReference(data.reference)){
 
         this._referenceType = "QRR";
 
-        if(!utils.isQRReferenceValid(this._data.reference)){
+        if(!utils.isQRReferenceValid(data.reference)){
           throw new Error("QR reference checksum is not valid.");
         }
 
@@ -607,10 +603,10 @@ export class PDF extends ExtendedPDF.PDF {
 
     } else {
 
-      if(this._data.reference === undefined){
+      if(data.reference === undefined){
         this._referenceType = "NON";
       } else {
-        if(utils.isQRReference(this._data.reference)){
+        if(utils.isQRReference(data.reference)){
           throw new Error("Creditor Reference requires the use of a conventional IBAN.");
         } else {
           this._referenceType = "SCOR";
@@ -622,143 +618,143 @@ export class PDF extends ExtendedPDF.PDF {
 
     //-- Creditor name
 
-    if(this._data.creditor.name === undefined){ throw new Error("Creditor name cannot be undefined."); }
-    if(typeof this._data.creditor.name !== "string"){ throw new Error("Creditor name must be a string."); }
-    if(this._data.creditor.name.length > 70){ throw new Error("Creditor name must be a maximum of 70 characters."); }
+    if(data.creditor.name === undefined){ throw new Error("Creditor name cannot be undefined."); }
+    if(typeof data.creditor.name !== "string"){ throw new Error("Creditor name must be a string."); }
+    if(data.creditor.name.length > 70){ throw new Error("Creditor name must be a maximum of 70 characters."); }
 
 
     //-- Creditor Address
 
-    if(this._data.creditor.address === undefined){ throw new Error("Creditor address cannot be undefined."); }
-    if(typeof this._data.creditor.address !== "string"){ throw new Error("Creditor address must be a string."); }
-    if(this._data.creditor.address.length > 70){ throw new Error("Creditor address must be a maximum of 70 characters."); }
+    if(data.creditor.address === undefined){ throw new Error("Creditor address cannot be undefined."); }
+    if(typeof data.creditor.address !== "string"){ throw new Error("Creditor address must be a string."); }
+    if(data.creditor.address.length > 70){ throw new Error("Creditor address must be a maximum of 70 characters."); }
 
 
     //-- Creditor houseNumber
 
-    if(this._data.creditor.houseNumber !== undefined){
-      if(typeof this._data.creditor.houseNumber !== "string" && typeof this._data.creditor.houseNumber !== "number"){ throw new Error("Debtor houseNumber must be either a string or a number."); }
-      if(this._data.creditor.houseNumber.toString().length > 16){ throw new Error("Creditor houseNumber can be a maximum of 16 characters."); }
+    if(data.creditor.houseNumber !== undefined){
+      if(typeof data.creditor.houseNumber !== "string" && typeof data.creditor.houseNumber !== "number"){ throw new Error("Debtor houseNumber must be either a string or a number."); }
+      if(data.creditor.houseNumber.toString().length > 16){ throw new Error("Creditor houseNumber can be a maximum of 16 characters."); }
     }
 
 
     //-- Creditor Zip
 
-    if(this._data.creditor.zip === undefined){ throw new Error("Creditor zip cannot be undefined."); }
-    if(typeof this._data.creditor.zip !== "number"){ throw new Error("Creditor zip must be a number."); }
-    if(this._data.creditor.zip.toString().length > 16){ throw new Error("Creditor zip must be a maximum of 16 characters."); }
+    if(data.creditor.zip === undefined){ throw new Error("Creditor zip cannot be undefined."); }
+    if(typeof data.creditor.zip !== "number"){ throw new Error("Creditor zip must be a number."); }
+    if(data.creditor.zip.toString().length > 16){ throw new Error("Creditor zip must be a maximum of 16 characters."); }
 
 
     //-- Creditor city
 
-    if(this._data.creditor.city === undefined){ throw new Error("Creditor city cannot be undefined."); }
-    if(typeof this._data.creditor.city !== "string"){ throw new Error("Creditor city must be a string."); }
-    if(this._data.creditor.city.length > 35){ throw new Error("Creditor city must be a maximum of 35 characters."); }
+    if(data.creditor.city === undefined){ throw new Error("Creditor city cannot be undefined."); }
+    if(typeof data.creditor.city !== "string"){ throw new Error("Creditor city must be a string."); }
+    if(data.creditor.city.length > 35){ throw new Error("Creditor city must be a maximum of 35 characters."); }
 
 
     //-- Creditor country
 
-    if(this._data.creditor.country === undefined){ throw new Error("Creditor country cannot be undefined."); }
-    if(typeof this._data.creditor.country !== "string"){ throw new Error("Creditor country must be a string."); }
-    if(this._data.creditor.country.length !== 2){ throw new Error("Creditor country must be 2 characters."); }
+    if(data.creditor.country === undefined){ throw new Error("Creditor country cannot be undefined."); }
+    if(typeof data.creditor.country !== "string"){ throw new Error("Creditor country must be a string."); }
+    if(data.creditor.country.length !== 2){ throw new Error("Creditor country must be 2 characters."); }
 
 
     //-- Amount
 
-    if(this._data.amount !== undefined){
-      if(typeof this._data.amount !== "number"){ throw new Error("Amount must be a number."); }
-      if(this._data.amount.toFixed(2).toString().length > 12){ throw new Error("Amount must be a maximum of 12 digits."); }
+    if(data.amount !== undefined){
+      if(typeof data.amount !== "number"){ throw new Error("Amount must be a number."); }
+      if(data.amount.toFixed(2).toString().length > 12){ throw new Error("Amount must be a maximum of 12 digits."); }
     }
 
 
     //-- Currency
 
-    if(this._data.currency === undefined){ throw new Error("Currency cannot be undefined."); }
-    if(typeof this._data.currency !== "string"){ throw new Error("Currency must be a string."); }
-    if(this._data.currency.length !== 3){ throw new Error("Currency must be a length of 3 characters."); }
-    if(this._data.currency !== "CHF" && this._data.currency !== "EUR"){ throw new Error("Currency must be either 'CHF' or 'EUR'"); }
+    if(data.currency === undefined){ throw new Error("Currency cannot be undefined."); }
+    if(typeof data.currency !== "string"){ throw new Error("Currency must be a string."); }
+    if(data.currency.length !== 3){ throw new Error("Currency must be a length of 3 characters."); }
+    if(data.currency !== "CHF" && data.currency !== "EUR"){ throw new Error("Currency must be either 'CHF' or 'EUR'"); }
 
 
     //-- Debtor
 
-    if(this._data.debtor !== undefined){
+    if(data.debtor !== undefined){
 
 
       //-- Debtor name
 
-      if(this._data.debtor.name === undefined){ throw new Error("Debtor name cannot be undefined if the debtor object is available."); }
-      if(typeof this._data.debtor.name !== "string"){ throw new Error("Debtor name must be a string."); }
-      if(this._data.debtor.name.length > 70){ throw new Error("Debtor name must be a maximum of 70 characters."); }
+      if(data.debtor.name === undefined){ throw new Error("Debtor name cannot be undefined if the debtor object is available."); }
+      if(typeof data.debtor.name !== "string"){ throw new Error("Debtor name must be a string."); }
+      if(data.debtor.name.length > 70){ throw new Error("Debtor name must be a maximum of 70 characters."); }
 
 
       //-- Debtor address
 
-      if(this._data.debtor.address === undefined){ throw new Error("Debtor address cannot be undefined if the debtor object is available."); }
-      if(typeof this._data.debtor.address !== "string"){ throw new Error("Debtor address must be a string."); }
-      if(this._data.debtor.address.length > 70){ throw new Error("Debtor address must be a maximum of 70 characters."); }
+      if(data.debtor.address === undefined){ throw new Error("Debtor address cannot be undefined if the debtor object is available."); }
+      if(typeof data.debtor.address !== "string"){ throw new Error("Debtor address must be a string."); }
+      if(data.debtor.address.length > 70){ throw new Error("Debtor address must be a maximum of 70 characters."); }
 
 
       //-- Debtor houseNumber
 
-      if(this._data.debtor.houseNumber !== undefined){
-        if(typeof this._data.debtor.houseNumber !== "string" && typeof this._data.debtor.houseNumber !== "number"){ throw new Error("Debtor house number must be either a string or a number."); }
-        if(this._data.debtor.houseNumber.toString().length > 16){ throw new Error("Debtor house number can be a maximum of 16 characters."); }
+      if(data.debtor.houseNumber !== undefined){
+        if(typeof data.debtor.houseNumber !== "string" && typeof data.debtor.houseNumber !== "number"){ throw new Error("Debtor house number must be either a string or a number."); }
+        if(data.debtor.houseNumber.toString().length > 16){ throw new Error("Debtor house number can be a maximum of 16 characters."); }
       }
 
 
       //-- Debtor zip
 
-      if(this._data.debtor.zip === undefined){ throw new Error("Debtor zip cannot be undefined if the debtor object is available."); }
-      if(typeof this._data.debtor.zip !== "number"){ throw new Error("Debtor zip must be a number."); }
-      if(this._data.debtor.zip.toString().length > 16){ throw new Error("Debtor zip must be a maximum of 16 characters."); }
+      if(data.debtor.zip === undefined){ throw new Error("Debtor zip cannot be undefined if the debtor object is available."); }
+      if(typeof data.debtor.zip !== "number"){ throw new Error("Debtor zip must be a number."); }
+      if(data.debtor.zip.toString().length > 16){ throw new Error("Debtor zip must be a maximum of 16 characters."); }
 
 
       //-- Debtor city
 
-      if(this._data.debtor.city === undefined){ throw new Error("Debtor city cannot be undefined if the debtor object is available."); }
-      if(typeof this._data.debtor.city !== "string"){ throw new Error("Debtor city must be a string."); }
-      if(this._data.debtor.city.length > 35){ throw new Error("Debtor city must be a maximum of 35 characters."); }
+      if(data.debtor.city === undefined){ throw new Error("Debtor city cannot be undefined if the debtor object is available."); }
+      if(typeof data.debtor.city !== "string"){ throw new Error("Debtor city must be a string."); }
+      if(data.debtor.city.length > 35){ throw new Error("Debtor city must be a maximum of 35 characters."); }
 
 
       //-- Debtor country
 
-      if(this._data.debtor.country === undefined){ throw new Error("Debtor country cannot be undefined if the debtor object is available."); }
-      if(typeof this._data.debtor.country !== "string"){ throw new Error("Debtor country must be a string."); }
-      if((this._data.debtor.country).length !== 2){ throw new Error("Debtor country must be 2 characters."); }
+      if(data.debtor.country === undefined){ throw new Error("Debtor country cannot be undefined if the debtor object is available."); }
+      if(typeof data.debtor.country !== "string"){ throw new Error("Debtor country must be a string."); }
+      if((data.debtor.country).length !== 2){ throw new Error("Debtor country must be 2 characters."); }
 
     }
 
 
     //-- Reference
 
-    if(this._data.reference !== undefined){
-      if(typeof this._data.reference !== "string"){ throw new Error("Reference name must be a string."); }
-      if(this._data.reference.length > 27){ throw new Error("Reference name must be a maximum of 27 characters."); }
+    if(data.reference !== undefined){
+      if(typeof data.reference !== "string"){ throw new Error("Reference name must be a string."); }
+      if(data.reference.length > 27){ throw new Error("Reference name must be a maximum of 27 characters."); }
     }
 
 
     //-- Message
 
-    if(this._data.message !== undefined){
-      if(this._data.message.length > 140){ throw new Error("Message must be a maximum of 140 characters."); }
-      if(typeof this._data.message !== "string"){ throw new Error("Message must be a string."); }
+    if(data.message !== undefined){
+      if(data.message.length > 140){ throw new Error("Message must be a maximum of 140 characters."); }
+      if(typeof data.message !== "string"){ throw new Error("Message must be a string."); }
     }
 
 
     //-- Additional information
 
-    if(this._data.additionalInformation !== undefined){
-      if(this._data.additionalInformation.length > 140){ throw new Error("AdditionalInfromation must be a maximum of 140 characters."); }
-      if(typeof this._data.additionalInformation !== "string"){ throw new Error("AdditionalInformation must be a string."); }
+    if(data.additionalInformation !== undefined){
+      if(data.additionalInformation.length > 140){ throw new Error("AdditionalInfromation must be a maximum of 140 characters."); }
+      if(typeof data.additionalInformation !== "string"){ throw new Error("AdditionalInformation must be a string."); }
     }
 
 
     //-- AV1
 
-    if(this._data.av1 !== undefined){
-      if(this._data.av1.length > 100){ throw new Error("AV1 must be a maximum of 100 characters."); }
-      if(typeof this._data.av1 !== "string"){ throw new Error("AV1 must be a string."); }
-      if(this._data.av1.substr(0, 5) !== "eBill"){
+    if(data.av1 !== undefined){
+      if(data.av1.length > 100){ throw new Error("AV1 must be a maximum of 100 characters."); }
+      if(typeof data.av1 !== "string"){ throw new Error("AV1 must be a string."); }
+      if(data.av1.substr(0, 5) !== "eBill"){
         throw new Error("AV1 must begin with eBill");
       }
     }
@@ -766,10 +762,10 @@ export class PDF extends ExtendedPDF.PDF {
 
     //-- AV2
 
-    if(this._data.av2 !== undefined){
-      if(this._data.av2.length > 100){ throw new Error("AV2 must be a maximum of 100 characters."); }
-      if(typeof this._data.av2 !== "string"){ throw new Error("AV2 must be a string."); }
-      if(this._data.av2.substr(0, 5) !== "eBill"){
+    if(data.av2 !== undefined){
+      if(data.av2.length > 100){ throw new Error("AV2 must be a maximum of 100 characters."); }
+      if(typeof data.av2 !== "string"){ throw new Error("AV2 must be a string."); }
+      if(data.av2.substr(0, 5) !== "eBill"){
         throw new Error("AV2 must begin with eBill");
       }
     }
@@ -777,7 +773,7 @@ export class PDF extends ExtendedPDF.PDF {
   }
 
 
-  private _generateQRCode(): void {
+  private _generateQRCode(data: data): void {
 
     let qrString = "";
 
@@ -799,30 +795,30 @@ export class PDF extends ExtendedPDF.PDF {
 
     //-- IBAN
 
-    qrString += "\n" + this._data.creditor.account ?? "\n";
+    qrString += "\n" + data.creditor.account ?? "\n";
 
 
     //-- Creditor
 
-    if(this._data.creditor.houseNumber !== undefined){
+    if(data.creditor.houseNumber !== undefined){
 
       // Address Type
       qrString += "\nS";
 
       // Name
-      qrString += "\n" + this._data.creditor.name;
+      qrString += "\n" + data.creditor.name;
 
       // Address
-      qrString += "\n" + this._data.creditor.address;
+      qrString += "\n" + data.creditor.address;
 
       // House number
-      qrString += "\n" + this._data.creditor.houseNumber;
+      qrString += "\n" + data.creditor.houseNumber;
 
       // Zip
-      qrString += "\n" + this._data.creditor.zip;
+      qrString += "\n" + data.creditor.zip;
 
       // City
-      qrString += "\n" + this._data.creditor.city;
+      qrString += "\n" + data.creditor.city;
 
     } else {
 
@@ -830,14 +826,14 @@ export class PDF extends ExtendedPDF.PDF {
       qrString += "\nK";
 
       // Name
-      qrString += "\n" + this._data.creditor.name;
+      qrString += "\n" + data.creditor.name;
 
       // Address
-      qrString += "\n" + this._data.creditor.address;
+      qrString += "\n" + data.creditor.address;
 
       // Zip + city
-      if((this._data.creditor.zip + " " + this._data.creditor.city).length > 70){ throw new Error("Creditor zip plus city must be a maximum of 70 characters."); }
-      qrString += "\n" + this._data.creditor.zip + " " + this._data.creditor.city;
+      if((data.creditor.zip + " " + data.creditor.city).length > 70){ throw new Error("Creditor zip plus city must be a maximum of 70 characters."); }
+      qrString += "\n" + data.creditor.zip + " " + data.creditor.city;
 
       // Empty zip field
       qrString += "\n";
@@ -847,7 +843,7 @@ export class PDF extends ExtendedPDF.PDF {
 
     }
 
-    qrString += "\n" + this._data.creditor.country;
+    qrString += "\n" + data.creditor.country;
 
 
     //-- 7 x empty
@@ -863,8 +859,8 @@ export class PDF extends ExtendedPDF.PDF {
 
     //-- Amount
 
-    if(this._data.amount !== undefined){
-      qrString += "\n" + this._data.amount.toFixed(2);
+    if(data.amount !== undefined){
+      qrString += "\n" + data.amount.toFixed(2);
     } else {
       qrString += "\n";
     }
@@ -872,31 +868,31 @@ export class PDF extends ExtendedPDF.PDF {
 
     //-- Currency
 
-    qrString += "\n" + this._data.currency;
+    qrString += "\n" + data.currency;
 
 
     //-- Debtor
 
-    if(this._data.debtor !== undefined){
-      if(this._data.debtor.houseNumber !== undefined){
+    if(data.debtor !== undefined){
+      if(data.debtor.houseNumber !== undefined){
 
         // Address type
         qrString += "\nS";
 
         // Name
-        qrString += "\n" + this._data.debtor.name;
+        qrString += "\n" + data.debtor.name;
 
         // Address
-        qrString += "\n" + this._data.debtor.address;
+        qrString += "\n" + data.debtor.address;
 
         // House number
-        qrString += "\n" + this._data.debtor.houseNumber;
+        qrString += "\n" + data.debtor.houseNumber;
 
         // Zip
-        qrString += "\n" + this._data.debtor.zip;
+        qrString += "\n" + data.debtor.zip;
 
         // City
-        qrString += "\n" + this._data.debtor.city;
+        qrString += "\n" + data.debtor.city;
 
       } else {
 
@@ -904,14 +900,14 @@ export class PDF extends ExtendedPDF.PDF {
         qrString += "\nK";
 
         // Name
-        qrString += "\n" + this._data.debtor.name;
+        qrString += "\n" + data.debtor.name;
 
         // Address
-        qrString += "\n" + this._data.debtor.address;
+        qrString += "\n" + data.debtor.address;
 
         // Zip + city
-        if((this._data.debtor.zip + " " + this._data.debtor.city).length > 70){ throw new Error("Debtor zip plus city must be a maximum of 70 characters."); }
-        qrString += "\n" + this._data.debtor.zip + " " + this._data.debtor.city;
+        if((data.debtor.zip + " " + data.debtor.city).length > 70){ throw new Error("Debtor zip plus city must be a maximum of 70 characters."); }
+        qrString += "\n" + data.debtor.zip + " " + data.debtor.city;
 
         // Empty field zip
         qrString += "\n";
@@ -922,7 +918,7 @@ export class PDF extends ExtendedPDF.PDF {
       }
 
       // Country
-      qrString += "\n" + this._data.debtor.country;
+      qrString += "\n" + data.debtor.country;
 
     } else {
 
@@ -953,13 +949,13 @@ export class PDF extends ExtendedPDF.PDF {
 
     //-- Reference type
 
-    qrString += "\n" + this._referenceType;
+    qrString += "\n" + this._getReferenceType(data);
 
 
     //-- Reference
 
-    if(this._data.reference !== undefined){
-      qrString += "\n" + this._data.reference;
+    if(data.reference !== undefined){
+      qrString += "\n" + data.reference;
     } else {
       qrString += "\n";
     }
@@ -967,8 +963,8 @@ export class PDF extends ExtendedPDF.PDF {
 
     //-- Unstructured message
 
-    if(this._data.message !== undefined){
-      qrString += "\n" + this._data.message;
+    if(data.message !== undefined){
+      qrString += "\n" + data.message;
     } else {
       qrString += "\n";
     }
@@ -981,8 +977,8 @@ export class PDF extends ExtendedPDF.PDF {
 
     //-- Additional information
 
-    if(this._data.additionalInformation !== undefined){
-      qrString += "\n" + this._data.additionalInformation;
+    if(data.additionalInformation !== undefined){
+      qrString += "\n" + data.additionalInformation;
     } else {
       qrString += "\n";
     }
@@ -990,12 +986,12 @@ export class PDF extends ExtendedPDF.PDF {
 
     //-- AV1
 
-    if(this._data.av1 !== undefined){
-      qrString += "\n" + this._data.av1;
+    if(data.av1 !== undefined){
+      qrString += "\n" + data.av1;
     }
 
-    if(this._data.av2 !== undefined){
-      qrString += "\n" + this._data.av2;
+    if(data.av2 !== undefined){
+      qrString += "\n" + data.av2;
     }
 
 
@@ -1098,7 +1094,7 @@ export class PDF extends ExtendedPDF.PDF {
   }
 
 
-  private _cleanData(): void {
+  private _cleanData(data): data {
 
     const _cleanObject = (object: object): void => {
 
@@ -1124,8 +1120,8 @@ export class PDF extends ExtendedPDF.PDF {
       }
     };
 
-    _cleanObject(this._data);
-
+    _cleanObject(data);
+    return data
   }
 
 
@@ -1134,10 +1130,10 @@ export class PDF extends ExtendedPDF.PDF {
   }
 
 
-  private _formatReference(reference: string): string {
-    if(this._referenceType === "QRR"){
+  private _formatReference(reference: string, referenceType: string | undefined): string {
+    if(referenceType === "QRR"){
       return utils.formatQRReference(reference);
-    } else if(this._referenceType === "SCOR"){
+    } else if(referenceType === "SCOR"){
       return utils.formatSCORReference(reference);
     }
     return reference;
